@@ -1,0 +1,13 @@
+﻿#!/bin/sh
+# 1. Remove .gitkeep if the folder contains other files
+find Episode_* -type f -name ".gitkeep" | while read -r keep; do
+    dir=$(dirname "$keep")
+    count=$(find "$dir" -maxdepth 1 -type f | wc -l)
+    if [ "$count" -gt 1 ]; then
+        git rm -f --quiet "$keep" 2>/dev/null || rm -f "$keep"
+    fi
+done
+
+# 2. Add .gitkeep back if a tracked directory is otherwise empty
+find Episode_* -type d -empty -exec touch {}/.gitkeep \;
+find Episode_* -type f -name ".gitkeep" | xargs -r git add
