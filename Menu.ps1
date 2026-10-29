@@ -5,9 +5,10 @@
     Write-Host "==========================================" -ForegroundColor Cyan
     Write-Host "1. View Production Dashboard"
     Write-Host "2. Scaffold New Episode(s)"
-    Write-Host "3. Export Dashboard Snapshot (JSON / CSV)"
-    Write-Host "4. Sync Dashboard Changes to GitHub"
-    Write-Host "5. Check Git Status"
+    Write-Host "3. Scan Episode Ingested Assets"
+    Write-Host "4. Export Dashboard Snapshot (JSON / CSV)"
+    Write-Host "5. Sync Dashboard Changes to GitHub"
+    Write-Host "6. Check Git Status"
     Write-Host "Q. Quit"
     Write-Host "------------------------------------------"
 }
@@ -52,6 +53,23 @@ do {
         }
         "3" {
             Clear-Host
+            Write-Host "--- Scan Episode Ingested Assets ---`n" -ForegroundColor Cyan
+            $epNum = Read-Host "Enter Episode Number to scan (e.g. 1)"
+            
+            if ($epNum -match '^\d+$') {
+                if (Test-Path ".\Test-EpisodeAssets.ps1") {
+                    .\Test-EpisodeAssets.ps1 -Episode ([int]$epNum)
+                } else {
+                    Write-Warning "Test-EpisodeAssets.ps1 not found."
+                }
+            } else {
+                Write-Warning "Please enter a valid numeric episode number."
+            }
+            Write-Host "`nPress any key to return to menu..." -ForegroundColor DarkGray
+            $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+        }
+        "4" {
+            Clear-Host
             Write-Host "--- Export Dashboard Snapshot ---`n" -ForegroundColor Cyan
             Write-Host "Formats: 1 = All, 2 = JSON, 3 = CSV"
             $fmtChoice = Read-Host "Select format (Default: 1)"
@@ -70,7 +88,7 @@ do {
             Write-Host "`nPress any key to return to menu..." -ForegroundColor DarkGray
             $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
         }
-        "4" {
+        "5" {
             Clear-Host
             Write-Host "--- Sync Dashboard to GitHub ---`n" -ForegroundColor Cyan
             $note = Read-Host "Enter commit message (Leave blank for default)"
@@ -87,7 +105,7 @@ do {
             Write-Host "`nPress any key to return to menu..." -ForegroundColor DarkGray
             $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
         }
-        "5" {
+        "6" {
             Clear-Host
             Write-Host "--- Current Git Status ---`n" -ForegroundColor Cyan
             git status
