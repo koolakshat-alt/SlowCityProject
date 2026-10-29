@@ -1,0 +1,47 @@
+﻿# OS & System Junk
+Thumbs.db
+Desktop.ini
+.DS_Store
+$RECYCLE.BIN/
+
+# Large Raw Video / Media Files (Track locally, don't push to Git)
+*.mov
+*.mp4
+*.mkv
+*.avi
+*.m4v
+*.braw
+*.r3d
+*.ari
+*.wav
+*.aif
+*.aiff
+
+# Video Editor Caches & Auto-Saves
+*.prproj~*
+*.pek
+*.cfa
+*.ims
+*.ims.tmp
+Adobe Premiere Pro Auto-Save/
+Adobe Premiere Pro Video Previews/
+Adobe Premiere Pro Audio Previews/
+.AppleDouble
+.scratch/
+
+# DaVinci Resolve & FCP Caches
+*.gallery/
+*.dt/
+Render Files/
+Analysis Files/
+
+# Final Cut Pro & Motion
+*.fcpbundle/
+*.imovielibrary/
+
+# Transcode & Proxy Caches
+Proxy/
+Proxies/
+Optimized Media/
+Scratch/
+Temp/
