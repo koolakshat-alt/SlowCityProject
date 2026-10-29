@@ -1,175 +1,127 @@
-﻿function Show-MainMenu {
+﻿function Show-Menu {
     Clear-Host
-    Write-Host "==========================================" -ForegroundColor Cyan
-    Write-Host "   THE SLOW CITY PROJECT - WORKFLOW CLI   " -ForegroundColor Cyan
-    Write-Host "==========================================" -ForegroundColor Cyan
-    Write-Host "1. View Production Dashboard"
-    Write-Host "2. Scaffold New Episode(s)"
-    Write-Host "3. Scan Episode Ingested Assets"
-    Write-Host "4. Test Audio Compliance (LUFS / True Peak)"
-    Write-Host "5. Generate Episode Thumbnail"
-    Write-Host "6. Clear Render Cache & Scratch Files"
-    Write-Host "7. Export Dashboard Snapshot (JSON / CSV)"
-    Write-Host "8. Sync Dashboard Changes to GitHub"
-    Write-Host "9. Check Git Status"
-    Write-Host "Q. Quit"
-    Write-Host "------------------------------------------"
+    Write-Host "===============================================================" -ForegroundColor Cyan
+    Write-Host "             THE SLOW CITY PROJECT - CLI MENU                  " -ForegroundColor Cyan
+    Write-Host "===============================================================" -ForegroundColor Cyan
+    Write-Host "  1. Show Project Dashboard           (Show-Dashboard.ps1)"
+    Write-Host "  2. Scaffold New Episode             (New-Episode.ps1)"
+    Write-Host "  3. Scan Episode Ingested Assets     (Test-EpisodeAssets.ps1)"
+    Write-Host "  4. Check Audio EBU Compliance       (Test-AudioCompliance.ps1)"
+    Write-Host "  5. Generate Thumbnail Template      (New-Thumbnail.ps1)"
+    Write-Host "  6. Clear DaVinci / Render Cache     (Clear-RenderCache.ps1)"
+    Write-Host "  7. Export Dashboard Status to JSON  (Export-Dashboard.ps1)"
+    Write-Host "  8. Sync Dashboard to Cloud / Git    (Sync-Dashboard.ps1)"
+    Write-Host "  9. Batch Rename Raw Camera Footage  (Rename-RawFootage.ps1)"
+    Write-Host "  Q. Quit"
+    Write-Host "===============================================================" -ForegroundColor Cyan
 }
 
 do {
-    Show-MainMenu
-    $choice = Read-Host "Select an option"
+    Show-Menu
+    $selection = Read-Host "`nEnter option [1-9 or Q]"
 
-    switch ($choice) {
+    switch ($selection) {
         "1" {
-            Clear-Host
             if (Test-Path ".\Show-Dashboard.ps1") {
                 .\Show-Dashboard.ps1
             } else {
-                Write-Warning "Show-Dashboard.ps1 not found."
+                Write-Warning "Show-Dashboard.ps1 not found in current directory."
             }
-            Write-Host "`nPress any key to return to menu..." -ForegroundColor DarkGray
-            $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+            Pause
         }
         "2" {
-            Clear-Host
-            Write-Host "--- Scaffold New Episode(s) ---`n" -ForegroundColor Cyan
-            $start = Read-Host "Enter Start Episode Number (e.g. 12)"
-            $end = Read-Host "Enter End Episode Number (press Enter to create only Episode $start)"
-
-            if ($end -match '^\d+$') {
-                .\New-Episode.ps1 -Start ([int]$start) -End ([int]$end)
-            } elseif ($start -match '^\d+$') {
-                .\New-Episode.ps1 -Start ([int]$start)
+            if (Test-Path ".\New-Episode.ps1") {
+                $epNum = Read-Host "Enter episode number to scaffold (e.g., 2, 3)"
+                $epTitle = Read-Host "Enter episode title (optional)"
+                if ($epTitle) {
+                    .\New-Episode.ps1 -EpisodeNumber $epNum -EpisodeTitle $epTitle
+                } else {
+                    .\New-Episode.ps1 -EpisodeNumber $epNum
+                }
             } else {
-                Write-Warning "Invalid episode number provided."
+                Write-Warning "New-Episode.ps1 not found in current directory."
             }
-
-            $pushNow = Read-Host "Stage and push new folders to GitHub now? (y/n)"
-            if ($pushNow -eq 'y') {
-                git add Episode_*
-                git commit -m "Scaffold new episode batch"
-                git push
-            }
-            Write-Host "`nPress any key to return to menu..." -ForegroundColor DarkGray
-            $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+            Pause
         }
         "3" {
-            Clear-Host
-            Write-Host "--- Scan Episode Ingested Assets ---`n" -ForegroundColor Cyan
-            $epNum = Read-Host "Enter Episode Number to scan (e.g. 1)"
-            
-            if ($epNum -match '^\d+$') {
-                if (Test-Path ".\Test-EpisodeAssets.ps1") {
-                    .\Test-EpisodeAssets.ps1 -Episode ([int]$epNum)
-                } else {
-                    Write-Warning "Test-EpisodeAssets.ps1 not found."
-                }
+            if (Test-Path ".\Test-EpisodeAssets.ps1") {
+                $ep = Read-Host "Enter episode number to test (e.g., 1)"
+                .\Test-EpisodeAssets.ps1 -Episode $ep -Detailed
             } else {
-                Write-Warning "Please enter a valid numeric episode number."
+                Write-Warning "Test-EpisodeAssets.ps1 not found in current directory."
             }
-            Write-Host "`nPress any key to return to menu..." -ForegroundColor DarkGray
-            $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+            Pause
         }
         "4" {
-            Clear-Host
-            Write-Host "--- Test Audio Compliance (LUFS / True Peak) ---`n" -ForegroundColor Cyan
-            $audioPath = Read-Host "Enter path to audio/video file"
-            
             if (Test-Path ".\Test-AudioCompliance.ps1") {
-                if (-not [string]::IsNullOrWhiteSpace($audioPath)) {
-                    .\Test-AudioCompliance.ps1 -FilePath $audioPath.Trim('"')
-                } else {
-                    Write-Warning "No file path provided."
-                }
+                $audioPath = Read-Host "Enter path to audio file or directory to scan"
+                .\Test-AudioCompliance.ps1 -Target $audioPath
             } else {
-                Write-Warning "Test-AudioCompliance.ps1 not found."
+                Write-Warning "Test-AudioCompliance.ps1 not found in current directory."
             }
-            Write-Host "`nPress any key to return to menu..." -ForegroundColor DarkGray
-            $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+            Pause
         }
         "5" {
-            Clear-Host
-            Write-Host "--- Generate Episode Thumbnail ---`n" -ForegroundColor Cyan
-            $imgPath = Read-Host "Enter path to source frame / image"
-            $epTag = Read-Host "Enter Episode Tag (Default: EPISODE 01)"
-            $title = Read-Host "Enter Thumbnail Title (Default: SLOW HERITAGE)"
-            $outPath = Read-Host "Enter output path (Press Enter for default)"
-
             if (Test-Path ".\New-Thumbnail.ps1") {
-                if (-not [string]::IsNullOrWhiteSpace($imgPath)) {
-                    $params = @{ ImagePath = $imgPath.Trim('"') }
-                    if (-not [string]::IsNullOrWhiteSpace($epTag)) { $params["EpisodeTag"] = $epTag }
-                    if (-not [string]::IsNullOrWhiteSpace($title)) { $params["Title"] = $title }
-                    if (-not [string]::IsNullOrWhiteSpace($outPath)) { $params["OutputPath"] = $outPath.Trim('"') }
-
-                    .\New-Thumbnail.ps1 @params
-                } else {
-                    Write-Warning "No source image path provided."
-                }
+                $ep = Read-Host "Enter episode number for thumbnail"
+                .\New-Thumbnail.ps1 -Episode $ep
             } else {
-                Write-Warning "New-Thumbnail.ps1 not found."
+                Write-Warning "New-Thumbnail.ps1 not found in current directory."
             }
-            Write-Host "`nPress any key to return to menu..." -ForegroundColor DarkGray
-            $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+            Pause
         }
         "6" {
-            Clear-Host
-            Write-Host "--- Clear Render Cache & Scratch Files ---`n" -ForegroundColor Cyan
             if (Test-Path ".\Clear-RenderCache.ps1") {
                 .\Clear-RenderCache.ps1
             } else {
-                Write-Warning "Clear-RenderCache.ps1 not found."
+                Write-Warning "Clear-RenderCache.ps1 not found in current directory."
             }
-            Write-Host "`nPress any key to return to menu..." -ForegroundColor DarkGray
-            $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+            Pause
         }
         "7" {
-            Clear-Host
-            Write-Host "--- Export Dashboard Snapshot ---`n" -ForegroundColor Cyan
-            Write-Host "Formats: 1 = All, 2 = JSON, 3 = CSV"
-            $fmtChoice = Read-Host "Select format (Default: 1)"
-            
-            $fmt = switch ($fmtChoice) {
-                "2" { "json" }
-                "3" { "csv" }
-                default { "all" }
-            }
-            
             if (Test-Path ".\Export-Dashboard.ps1") {
-                .\Export-Dashboard.ps1 -Format $fmt
+                .\Export-Dashboard.ps1
             } else {
-                Write-Warning "Export-Dashboard.ps1 not found."
+                Write-Warning "Export-Dashboard.ps1 not found in current directory."
             }
-            Write-Host "`nPress any key to return to menu..." -ForegroundColor DarkGray
-            $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+            Pause
         }
         "8" {
-            Clear-Host
-            Write-Host "--- Sync Dashboard to GitHub ---`n" -ForegroundColor Cyan
-            $note = Read-Host "Enter commit message (Leave blank for default)"
-            
             if (Test-Path ".\Sync-Dashboard.ps1") {
-                if ([string]::IsNullOrWhiteSpace($note)) {
-                    .\Sync-Dashboard.ps1
-                } else {
-                    .\Sync-Dashboard.ps1 -Note $note
-                }
+                .\Sync-Dashboard.ps1
             } else {
-                Write-Warning "Sync-Dashboard.ps1 not found."
+                Write-Warning "Sync-Dashboard.ps1 not found in current directory."
             }
-            Write-Host "`nPress any key to return to menu..." -ForegroundColor DarkGray
-            $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+            Pause
         }
         "9" {
-            Clear-Host
-            Write-Host "--- Current Git Status ---`n" -ForegroundColor Cyan
-            git status
-            Write-Host "`nPress any key to return to menu..." -ForegroundColor DarkGray
-            $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+            if (Test-Path ".\Rename-RawFootage.ps1") {
+                $folder = Read-Host "Enter target folder path containing raw media"
+                $ep = Read-Host "Enter Episode Number (e.g., 01)"
+                $cam = Read-Host "Enter Camera identifier (A, B, D, or Stills) [Default: A]"
+                if (-not $cam) { $cam = "A" }
+                $act = Read-Host "Enter Act name (e.g., ACT1_ColdOpen) [Default: ACT1_ColdOpen]"
+                if (-not $act) { $act = "ACT1_ColdOpen" }
+                $shot = Read-Host "Enter Shot Type (e.g., TRACK, CU, EST) [Default: TRACK]"
+                if (-not $shot) { $shot = "TRACK" }
+
+                $isDry = Read-Host "Run as a dry-run preview first? (y/n) [Default: y]"
+                if ($isDry -ne 'n') {
+                    .\Rename-RawFootage.ps1 -TargetFolder $folder -Episode $ep -Camera $cam -Act $act -ShotType $shot -DryRun
+                } else {
+                    .\Rename-RawFootage.ps1 -TargetFolder $folder -Episode $ep -Camera $cam -Act $act -ShotType $shot
+                }
+            } else {
+                Write-Warning "Rename-RawFootage.ps1 not found in current directory."
+            }
+            Pause
+        }
+        "Q" {
+            Write-Host "`nExiting Slow City Project CLI. See you next session!`n" -ForegroundColor Cyan
+        }
+        default {
+            Write-Warning "Invalid option. Please choose a number from 1 to 9, or Q to quit."
+            Start-Sleep -Seconds 1
         }
     }
-} while ($choice -notmatch '^[Qq]$')
-
-Clear-Host
-Write-Host "Exited Slow City Project CLI." -ForegroundColor Green
+} while ($selection -ne "Q" -and $selection -ne "q")
