@@ -1,65 +1,103 @@
 ﻿param(
-    [Parameter(Mandatory=$true)]
-    [string]$FilePath,
+    [Parameter(Mandatory = $true, Position = 0)]
+    [string]$TargetPath,
+
+    [string]$Filter = "*.*",
 
     [double]$TargetLUFS = -14.0,
     [double]$TargetMaxPeak = -1.0
 )
 
-# Verify FFmpeg is installed
-if (-not (Get-Command ffmpeg -ErrorAction SilentlyContinue)) {
-    Write-Error "FFmpeg is not installed or not in PATH. Please install FFmpeg (e.g., via 'winget install Gyan.FFmpeg')."
+# 1. Dependency Check: ffmpeg
+$hasFFmpeg = Get-Command "ffmpeg" -ErrorAction SilentlyContinue
+
+if (-not $hasFFmpeg) {
+    Write-Warning "FFmpeg is not detected in your PATH."
+    Write-Host "Install via winget: 'winget install Gyan.FFmpeg' to run live EBU/LUFS analysis." -ForegroundColor Yellow
+    Write-Host "Falling back to basic file structure and extension checks...`n" -ForegroundColor DarkGray
+}
+
+# 2. Resolve Target Files
+if (Test-Path $TargetPath -PathType Container) {
+    $audioFiles = Get-ChildItem -Path $TargetPath -Recurse -Filter $Filter -File | Where-Object {
+        @(".wav", ".mp3", ".flac", ".m4a", ".aac") -contains $_.Extension.ToLower()
+    }
+} elseif (Test-Path $TargetPath -PathType Leaf) {
+    $audioFiles = @(Get-Item -Path $TargetPath)
+} else {
+    Write-Error "Target path not found: $TargetPath"
     exit
 }
 
-if (-not (Test-Path $FilePath)) {
-    Write-Warning "File not found: $FilePath"
+if ($audioFiles.Count -eq 0) {
+    Write-Warning "No audio matching '$Filter' found in $TargetPath."
     exit
 }
 
-Write-Host "`nAnalyzing audio loudness for: $(Split-Path $FilePath -Leaf)..." -ForegroundColor Cyan
-Write-Host "Standards Target: Integrated Loudness = $TargetLUFS LUFS | True Peak <= $TargetMaxPeak dBTP`n" -ForegroundColor DarkGray
+Write-Host "===============================================================" -ForegroundColor Cyan
+Write-Host "             AUDIO EBU / LOUDNESS COMPLIANCE SCAN              " -ForegroundColor Cyan
+Write-Host "===============================================================" -ForegroundColor Cyan
+Write-Host "Path:     $TargetPath" -ForegroundColor DarkGray
+Write-Host "Filter:   $Filter" -ForegroundColor DarkGray
+Write-Host "Standard: YouTube/Streaming ($TargetLUFS LUFS, Max True Peak: $TargetMaxPeak dBTP)`n" -ForegroundColor DarkGray
 
-# Run ffmpeg ebur128 dual-pass analysis filter
-$ffmpegCmd = "ffmpeg -nostats -i `"$FilePath`" -filter_complex ebur128=peak=true -f null - 2>&1"
-$output = Invoke-Expression $ffmpegCmd
+$results = @()
 
-# Parse output lines
-$summarySection = $false
-$integratedLoudness = $null
-$truePeak = $null
-$loudnessRange = $null
+foreach ($file in $audioFiles) {
+    $fileName   = $file.Name
+    $fileSizeMB = [math]::Round($file.Length / 1MB, 2)
+    $ext        = $file.Extension.ToUpper()
 
-foreach ($line in $output) {
-    if ($line -match "Summary:") { $summarySection = $true }
-    if ($summarySection) {
-        if ($line -match "I:\s+(-?[\d\.]+)\s+LUFS") { $integratedLoudness = [double]$matches[1] }
-        if ($line -match "Peak:\s+(-?[\d\.]+)\s+dBTP") { $truePeak = [double]$matches[1] }
-        if ($line -match "LRA:\s+([\d\.]+)\s+LU") { $loudnessRange = [double]$matches[1] }
+    if ($hasFFmpeg) {
+        $cmd = "ffmpeg -nostats -i `"$($file.FullName)`" -filter_complex ebur128=peak=true -f null - 2>&1"
+        $output = Invoke-Expression $cmd
+
+        $lufsMatch = ($output | Select-String -Pattern 'I:\s+(-?\d+\.?\d*)\s+LUFS')
+        $peakMatch = ($output | Select-String -Pattern 'Peak:\s+(-?\d+\.?\d*)\s+dBFS')
+
+        $integratedLUFS = if ($lufsMatch) { [double]$lufsMatch.Matches[0].Groups[1].Value } else { $null }
+        $truePeak       = if ($peakMatch) { [double]$peakMatch.Matches[0].Groups[1].Value } else { $null }
+
+        $isCompliant = $true
+        $notes = @()
+
+        if ($null -ne $integratedLUFS) {
+            $diff = [math]::Abs($integratedLUFS - $TargetLUFS)
+            if ($diff -gt 2.0) {
+                $isCompliant = $false
+                if ($integratedLUFS -gt $TargetLUFS) { $notes += "Too Loud" } else { $notes += "Too Quiet" }
+            }
+        }
+
+        if ($null -ne $truePeak -and $truePeak -gt $TargetMaxPeak) {
+            $isCompliant = $false
+            $notes += "Clipping Risk (> $TargetMaxPeak dBTP)"
+        }
+
+        $statusStr = if ($isCompliant) { "PASS" } else { "CHECK" }
+
+        $results += [PSCustomObject]@{
+            "File"       = $fileName
+            "Format"     = $ext
+            "Size (MB)"  = $fileSizeMB
+            "LUFS"       = if ($null -ne $integratedLUFS) { "$integratedLUFS" } else { "N/A" }
+            "True Peak"  = if ($null -ne $truePeak) { "$truePeak dB" } else { "N/A" }
+            "Status"     = $statusStr
+            "Notes"      = if ($notes.Count -gt 0) { $notes -join ", " } else { "Within Spec" }
+        }
+    } else {
+        $isWav = $ext -eq ".WAV"
+        $results += [PSCustomObject]@{
+            "File"       = $fileName
+            "Format"     = $ext
+            "Size (MB)"  = $fileSizeMB
+            "LUFS"       = "N/A (No ffmpeg)"
+            "True Peak"  = "N/A"
+            "Status"     = if ($isWav) { "READY" } else { "COMPRESSED" }
+            "Notes"      = if ($isWav) { "Uncompressed WAV" } else { "Compressed audio format" }
+        }
     }
 }
 
-if ($null -eq $integratedLoudness -or $null -eq $truePeak) {
-    Write-Warning "Could not extract complete loudness parameters. Verify the audio stream is valid."
-    exit
-}
-
-# Evaluate compliance
-$lufsDiff = [math]::Round($integratedLoudness - $TargetLUFS, 2)
-$lufsStatus = if ([math]::Abs($integratedLoudness - $TargetLUFS) -le 1.0) { "🟢 Optimal" } elseif ($integratedLoudness -gt $TargetLUFS) { "🔴 Too Loud (YouTube will attenuate)" } else { "🟡 Quiet (YouTube will not boost)" }
-$peakStatus = if ($truePeak -le $TargetMaxPeak) { "🟢 Pass (No inter-sample clipping)" } else { "🔴 Fail (Risk of clipping on lossy transcode)" }
-
-[PSCustomObject]@{
-    "Integrated Loudness" = "$integratedLoudness LUFS"
-    "Target Offset"       = "$lufsDiff dB"
-    "Loudness Status"     = $lufsStatus
-    "True Peak"           = "$truePeak dBTP"
-    "True Peak Status"    = $peakStatus
-    "Loudness Range (LRA)" = "$loudnessRange LU"
-} | Format-List
-
-if ($integratedLoudness -gt $TargetLUFS -or $truePeak -gt $TargetMaxPeak) {
-    Write-Host "Recommendation: Apply a True Peak Limiter with ceiling at $TargetMaxPeak dBTP and adjust master gain by $($lufsDiff * -1) dB.`n" -ForegroundColor Yellow
-} else {
-    Write-Host "Audio is within broadcast tolerances for YouTube delivery!`n" -ForegroundColor Green
-}
+$results | Format-Table -AutoSize
+Write-Host "===============================================================" -ForegroundColor Cyan
